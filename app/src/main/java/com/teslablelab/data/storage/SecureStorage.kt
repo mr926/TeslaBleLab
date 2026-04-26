@@ -1,11 +1,10 @@
 package com.teslablelab.data.storage
 
 import android.content.Context
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
+import android.util.Log
+import com.teslablelab.toHexString
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
-import com.jakewharton.timber.Timber
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -34,16 +33,16 @@ class SecureStorage(context: Context) {
     )
 
     fun saveKeyPair(vin: String, publicKey: ByteArray, encryptedPrivateKey: ByteArray, deviceAddress: String) {
-        Timber.tag(TAG).d("Saving key pair for VIN: $vin")
+        Log.d(TAG, "Saving key pair for VIN: $vin")
 
         sharedPreferences.edit()
             .putString(KEY_VIN, vin)
             .putString(KEY_PUBLIC_KEY, publicKey.toHexString())
             .putString(KEY_PRIVATE_KEY, encryptedPrivateKey.toHexString())
             .putString(KEY_PAIRED_ADDRESS, deviceAddress)
-            .apply()
+            .commit()
 
-        Timber.tag(TAG).d("Key pair saved successfully")
+        Log.d(TAG, "Key pair saved successfully")
     }
 
     fun getSavedVin(): String? {
@@ -65,7 +64,7 @@ class SecureStorage(context: Context) {
     }
 
     fun saveSessionData(vin: String, sessionId: Int, sessionToken: Int, sharedSecret: ByteArray) {
-        Timber.tag(TAG).d("Saving session data for VIN: $vin")
+        Log.d(TAG, "Saving session data for VIN: $vin")
 
         val sessionDataJson = "$sessionId|$sessionToken|${sharedSecret.toHexString()}"
         sharedPreferences.edit()
@@ -86,29 +85,36 @@ class SecureStorage(context: Context) {
 
             Triple(sessionId, sessionToken, sharedSecret)
         } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Failed to parse session data")
+            Log.e(TAG, "Failed to parse session data", e)
             null
         }
     }
 
-    fun clearPairingData(vin: String) {
-        Timber.tag(TAG).d("Clearing pairing data for VIN: $vin")
+    fun clearPairingData(vin: String): Boolean {
+        Log.d(TAG, "Clearing pairing data for VIN: $vin")
 
-        sharedPreferences.edit()
+        return sharedPreferences.edit()
             .remove(KEY_VIN)
             .remove(KEY_PUBLIC_KEY)
             .remove(KEY_PRIVATE_KEY)
             .remove(KEY_PAIRED_ADDRESS)
             .remove("${KEY_SESSION_DATA}_$vin")
-            .apply()
+            .commit()
+    }
+
+    fun clearAllPairingData(): Boolean {
+        val savedVin = getSavedVin()
+        Log.d(TAG, "Clearing all pairing data (savedVin=$savedVin)")
+
+        return sharedPreferences.edit().clear().commit()
     }
 
     fun hasExistingPairing(): Boolean {
         return getSavedVin() != null && getEncryptedPrivateKey() != null
     }
 
-    private fun ByteArray.toHexString(): String {
-        return joinToString("") { "%02x".format(it) }
+    fun hasExistingPairing(vin: String): Boolean {
+        return getSavedVin() == vin && getEncryptedPrivateKey() != null
     }
 
     private fun hexStringToByteArray(hex: String): ByteArray {

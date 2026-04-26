@@ -1,89 +1,33 @@
 package com.teslablelab.domain.protocol
 
-import com.jakewharton.timber.Timber
+import android.util.Log
+import java.security.MessageDigest
 
 object TeslaBleConstants {
     private const val TAG = "TeslaBleConstants"
 
-    val TESLA_BLE_SERVICE_UUID = "0000fff0-0000-1000-8000-00805f9b34fb"
-    val TESLA_BLE_CHARACTERISTIC_WRITE_UUID = "0000fff1-0000-1000-8000-00805f9b34fb"
-    val TESLA_BLE_CHARACTERISTIC_NOTIFY_UUID = "0000fff2-0000-1000-8000-00805f9b34fb"
-    val TESLA_BLE_CHARACTERISTIC_WRITE_WO_RESP_UUID = "0000fff3-0000-1000-8000-00805f9b34fb"
+    const val VEHICLE_SERVICE_UUID = "00000211-b2d1-43f0-9b88-960cebf8b91e"
+    const val TO_VEHICLE_UUID = "00000212-b2d1-43f0-9b88-960cebf8b91e"
+    const val FROM_VEHICLE_UUID = "00000213-b2d1-43f0-9b88-960cebf8b91e"
 
     const val MTU_SIZE = 512
+    const val MAX_BLE_MESSAGE_SIZE = 1024
+    const val SHARED_KEY_SIZE_BYTES = 16
+    const val FLAG_ENCRYPT_RESPONSE_MASK = 1 shl 1
 
-    const val MESSAGE_TYPE_HANDSHAKE_START = 0x10
-    const val MESSAGE_TYPE_HANDSHAKE_ACK = 0x11
-    const val MESSAGE_TYPE_KEY_EXCHANGE = 0x12
-    const val MESSAGE_TYPE_KEY_EXCHANGE_ACK = 0x13
-    const val MESSAGE_TYPE_SESSION_REQUEST = 0x14
-    const val MESSAGE_TYPE_SESSION_RESPONSE = 0x15
-    const val MESSAGE_TYPE_CRYPTO = 0x16
-    const val MESSAGE_TYPE_SUBSCRIBE = 0x17
-    const val MESSAGE_TYPE_SUBSCRIBE_RESPONSE = 0x18
-    const val MESSAGE_TYPE_HTTP_REQUEST = 0x19
-    const val MESSAGE_TYPE_HTTP_RESPONSE = 0x1A
-    const val MESSAGE_TYPE_PAIRING_REQUEST = 0x50
-    const val MESSAGE_TYPE_PAIRING_RESPONSE = 0x51
-    const val MESSAGE_TYPE_SIGNATURE_CHALLENGE = 0x52
-    const val MESSAGE_TYPE_SIGNATURE_RESPONSE = 0x53
-    const val MESSAGE_TYPE_PAIRING_CONFIRM = 0x54
-    const val MESSAGE_TYPE_SESSION_TERMINATE = 0x1B
-    const val MESSAGE_TYPE_WAKE_UP = 0x1C
-    const val MESSAGE_TYPE_SLEEP_CYCLE_START = 0x1D
-    const val MESSAGE_TYPE_SLEEP_CYCLE_ACK = 0x1E
-    const val MESSAGE_TYPE_SLEEP_CYCLE_END = 0x1F
-    const val MESSAGE_TYPE_CUSTOM = 0x20
+    const val DEFAULT_VIN = "LRWYGCEJ1SC437215"
 
-    const val API_VERSION = 17
-    const val PROTOCOL_VERSION = 1
-
-    const val SUBSCRIPTION_ID_VEHICLE_STATE = 1
-    const val SUBSCRIPTION_ID_CHARGING_STATE = 2
-    const val SUBSCRIPTION_ID_LOCATION = 3
-    const val SUBSCRIPTION_ID_TPMS = 4
-    const val SUBSCRIPTION_ID_HVAC = 5
-
-    const val SESSION_TYPE_NORMAL = 1
-    const val SESSION_TYPE_STREAMING = 2
-
-    const val PAIRING_STATUS_SUCCESS = 0
-    const val PAIRING_STATUS_PENDING = 1
-    const val PAIRING_STATUS_FAILED = 2
-
-    const val STATUS_SUCCESS = 0
-    const val STATUS_FAILURE = 1
-
-    fun getMessageTypeName(type: Int): String {
-        return when (type) {
-            MESSAGE_TYPE_HANDSHAKE_START -> "HANDSHAKE_START"
-            MESSAGE_TYPE_HANDSHAKE_ACK -> "HANDSHAKE_ACK"
-            MESSAGE_TYPE_KEY_EXCHANGE -> "KEY_EXCHANGE"
-            MESSAGE_TYPE_KEY_EXCHANGE_ACK -> "KEY_EXCHANGE_ACK"
-            MESSAGE_TYPE_SESSION_REQUEST -> "SESSION_REQUEST"
-            MESSAGE_TYPE_SESSION_RESPONSE -> "SESSION_RESPONSE"
-            MESSAGE_TYPE_CRYPTO -> "CRYPTO"
-            MESSAGE_TYPE_SUBSCRIBE -> "SUBSCRIBE"
-            MESSAGE_TYPE_SUBSCRIBE_RESPONSE -> "SUBSCRIBE_RESPONSE"
-            MESSAGE_TYPE_HTTP_REQUEST -> "HTTP_REQUEST"
-            MESSAGE_TYPE_HTTP_RESPONSE -> "HTTP_RESPONSE"
-            MESSAGE_TYPE_PAIRING_REQUEST -> "PAIRING_REQUEST"
-            MESSAGE_TYPE_PAIRING_RESPONSE -> "PAIRING_RESPONSE"
-            MESSAGE_TYPE_SIGNATURE_CHALLENGE -> "SIGNATURE_CHALLENGE"
-            MESSAGE_TYPE_SIGNATURE_RESPONSE -> "SIGNATURE_RESPONSE"
-            MESSAGE_TYPE_PAIRING_CONFIRM -> "PAIRING_CONFIRM"
-            MESSAGE_TYPE_SESSION_TERMINATE -> "SESSION_TERMINATE"
-            MESSAGE_TYPE_WAKE_UP -> "WAKE_UP"
-            MESSAGE_TYPE_SLEEP_CYCLE_START -> "SLEEP_CYCLE_START"
-            MESSAGE_TYPE_SLEEP_CYCLE_ACK -> "SLEEP_CYCLE_ACK"
-            MESSAGE_TYPE_SLEEP_CYCLE_END -> "SLEEP_CYCLE_END"
-            MESSAGE_TYPE_CUSTOM -> "CUSTOM"
-            else -> "UNKNOWN_0x${Integer.toHexString(type)}"
-        }
+    fun vehicleLocalName(vin: String): String {
+        val digest = MessageDigest.getInstance("SHA-1")
+        val hash = digest.digest(vin.toByteArray())
+        val hex = hash.take(8).joinToString("") { "%02x".format(it) }
+        val name = "S${hex}C"
+        Log.d(TAG, "VIN: $vin -> LocalName: $name")
+        return name
     }
 
     fun logBleUuid(serviceUuid: String?, characteristicUuid: String?) {
-        Timber.tag(TAG).d("Service UUID: $serviceUuid")
-        Timber.tag(TAG).d("Characteristic UUID: $characteristicUuid")
+        Log.d(TAG, "Service UUID: $serviceUuid")
+        Log.d(TAG, "Characteristic UUID: $characteristicUuid")
     }
 }

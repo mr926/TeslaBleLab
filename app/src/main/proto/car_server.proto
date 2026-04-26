@@ -1,0 +1,72 @@
+syntax = "proto3";
+
+package CarServer;
+
+option java_package = "com.tesla.generated.carserver";
+option java_multiple_files = true;
+
+import "vehicle.proto";
+import "signatures.proto";
+
+message Action {
+    reserved 3 to 5;
+    oneof action_msg {
+        VehicleAction vehicleAction = 2;
+    }
+}
+
+message VehicleAction {
+    reserved 11;
+    reserved 60;
+    reserved 76;
+    oneof vehicle_action_msg {
+        GetVehicleData getVehicleData = 1;
+    }
+}
+
+message GetVehicleData {
+    GetChargeState getChargeState = 2;
+    GetClimateState getClimateState = 3;
+    GetDriveState getDriveState = 4;
+    reserved 5, 6;
+    GetLocationState getLocationState = 7;
+    GetClosuresState getClosuresState = 8;
+    GetTirePressureState getTirePressureState = 14;
+    GetMediaState getMediaState = 15;
+    GetMediaDetailState getMediaDetailState = 16;
+    GetSoftwareUpdateState getSoftwareUpdateState = 17;
+}
+
+message GetChargeState {}
+message GetClimateState {}
+message GetDriveState {}
+message GetLocationState {}
+message GetClosuresState {}
+message GetTirePressureState {}
+message GetMediaState {}
+message GetMediaDetailState {}
+message GetSoftwareUpdateState {}
+
+message Response {
+    ActionStatus actionStatus = 1;
+    oneof response_msg {
+        VehicleData vehicleData = 2;
+        Signatures.SessionInfo getSessionInfoResponse = 3;
+    }
+}
+
+message ActionStatus {
+    OperationStatus_E result = 1;
+    ResultReason result_reason = 2;
+}
+
+enum OperationStatus_E {
+    OPERATIONSTATUS_OK = 0;
+    OPERATIONSTATUS_ERROR = 1;
+}
+
+message ResultReason {
+    oneof reason {
+        string plain_text = 1;
+    }
+}

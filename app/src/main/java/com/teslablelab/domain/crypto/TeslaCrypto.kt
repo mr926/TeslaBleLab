@@ -1,172 +1,234 @@
 package com.teslablelab.domain.crypto
 
-import java.security.KeyPairGenerator
-import java.security.KeyFactory
-import java.security.PrivateKey
-import java.security.PublicKey
+import android.util.Log
+import com.teslablelab.toHexString
+import org.bouncycastle.crypto.generators.ECKeyPairGenerator
+import org.bouncycastle.crypto.params.ECDomainParameters
+import org.bouncycastle.crypto.params.ECKeyGenerationParameters
+import org.bouncycastle.crypto.params.ECPrivateKeyParameters
+import org.bouncycastle.crypto.params.ECPublicKeyParameters
+import org.bouncycastle.math.ec.ECAlgorithms
+import org.bouncycastle.math.ec.ECCurve
+import org.bouncycastle.math.ec.ECPoint
+import java.math.BigInteger
 import java.security.SecureRandom
-import javax.crypto.KeyAgreement
-import javax.crypto.spec.SecretKeySpec
+import java.security.Signature
+import java.security.spec.PKCS8EncodedKeySpec
 import javax.crypto.Cipher
+import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
-import com.jakewharton.timber.Timber
-import kotlin.experimental.xor
+import javax.crypto.spec.SecretKeySpec
 
 class TeslaCrypto {
     companion object {
         private const val TAG = "TeslaCrypto"
-        private const val KEY_SIZE = 256
-        private const val AES_KEY_SIZE = 256
         private const val GCM_IV_LENGTH = 12
         private const val GCM_TAG_LENGTH = 128
+        private const val SHARED_KEY_SIZE = 16
+        private const val GCM_TAG_BYTES = 16
     }
 
-    private val keyPairGenerator = KeyPairGenerator.getInstance("EC")
-    private var keyPair: java.security.KeyPair? = null
+    private val secureRandom = SecureRandom()
+
+    private val p256curve: ECCurve by lazy {
+        org.bouncycastle.math.ec.custom.sec.SecP256R1Curve()
+    }
+
+    private val p256n: BigInteger by lazy { p256curve.order }
+    private val p256domain: ECDomainParameters by lazy {
+        val gHex = "046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5"
+        val gBytes = ByteArray(gHex.length / 2) { i -> ((gHex.substring(i * 2, i * 2 + 2).toInt(16)).toByte()) }
+        ECDomainParameters(p256curve, p256curve.decodePoint(gBytes), p256curve.order, p256curve.cofactor)
+    }
+    private val p256g: ECPoint by lazy { p256domain.g }
+
+    private var keyPair: org.bouncycastle.crypto.AsymmetricCipherKeyPair? = null
 
     init {
-        keyPairGenerator.initialize(KEY_SIZE, SecureRandom())
-        keyPair = keyPairGenerator.generateKeyPair()
-        Timber.tag(TAG).d("EC key pair generated")
+        generateKeyPair()
     }
 
-    fun getPublicKey(): ByteArray {
-        return keyPair?.public?.encoded ?: throw IllegalStateException("Key pair not initialized")
+    fun generateKeyPair() {
+        val keyGen = ECKeyPairGenerator()
+        val keyGenParams = ECKeyGenerationParameters(p256domain, secureRandom)
+        keyGen.init(keyGenParams)
+        keyPair = keyGen.generateKeyPair()
+        Log.d(TAG, "EC P-256 key pair generated")
     }
 
-    fun getPrivateKey(): ByteArray {
-        return keyPair?.private?.encoded ?: throw IllegalStateException("Key pair not initialized")
-    }
-
-    fun getPublicKeyPoint(): ByteArray {
-        val publicKey = keyPair?.public as? java.security.interfaces.ECPublicKey
-            ?: throw IllegalStateException("Not an EC public key")
-        val w = publicKey.w
-        val xBytes = unsignedToBytes(w.x)
-        val yBytes = unsignedToBytes(w.y)
-        return byteArrayOf(0x04) + xBytes + yBytes
-    }
-
-    private fun unsignedToBytes(bigInt: java.math.BigInteger): ByteArray {
-        val bytes = bigInt.toByteArray()
-        return if (bytes[0] == 0.toByte()) {
-            bytes.copyOfRange(1, bytes.size)
-        } else {
-            bytes
+    fun loadPrivateKey(privateKeyBytes: ByteArray): Boolean {
+        return try {
+            val d = BigInteger(1, privateKeyBytes)
+            val publicKeyPoint = p256g.multiply(d)
+            val pubKey = ECPublicKeyParameters(publicKeyPoint, p256domain)
+            val privKey = ECPrivateKeyParameters(d, p256domain)
+            keyPair = org.bouncycastle.crypto.AsymmetricCipherKeyPair(pubKey, privKey)
+            Log.d(TAG, "Loaded existing private key, pubkey: ${getPublicKeyPoint().toHexString()}")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load private key", e)
+            false
         }
     }
 
-    fun performEcdh(peerPublicKeyBytes: ByteArray): ByteArray {
-        Timber.tag(TAG).d("Performing ECDH key exchange")
-        Timber.tag(TAG).d("Our public key: ${getPublicKeyPoint().toHexString()}")
-
-        val peerPublicKey = decodeEcPublicKey(peerPublicKeyBytes)
-        val keyAgreement = KeyAgreement.getInstance("ECDH")
-        keyAgreement.init(keyPair?.private)
-        keyAgreement.doPhase(peerPublicKey, true)
-        val sharedSecret = keyAgreement.generateSecret()
-        Timber.tag(TAG).d("ECDH shared secret: ${sharedSecret.toHexString()}")
-        return sharedSecret
+    fun getPublicKeyPoint(): ByteArray {
+        val publicKey = (keyPair?.public as? ECPublicKeyParameters)?.q
+            ?: throw IllegalStateException("Key pair not initialized")
+        val encoded = publicKey.getEncoded(false)
+        Log.d(TAG, "Public key point: ${encoded.toHexString()}")
+        return encoded
     }
 
-    private fun decodeEcPublicKey(encoded: ByteArray): PublicKey {
-        val keyFactory = KeyFactory.getInstance("EC")
-        return keyFactory.generatePublic(java.security.spec.X509EncodedKeySpec(encoded))
+    fun getPrivateKeyEncoded(): ByteArray {
+        val privateKey = (keyPair?.private as? ECPrivateKeyParameters)?.d
+            ?: throw IllegalStateException("Key pair not initialized")
+        return bigIntToBytes(privateKey, 32)
     }
 
-    fun deriveSessionKey(sharedSecret: ByteArray, nonce: ByteArray, isOutgoing: Boolean): ByteArray {
-        Timber.tag(TAG).d("Deriving session key")
-        Timber.tag(TAG).d("Shared secret: ${sharedSecret.toHexString()}")
-        Timber.tag(TAG).d("Nonce: ${nonce.toHexString()}")
-        Timber.tag(TAG).d("Is outgoing: $isOutgoing")
+    fun performECDH(peerPublicKeyBytes: ByteArray): ByteArray {
+        Log.d(TAG, "Performing ECDH key exchange")
+        Log.d(TAG, "Our public key: ${getPublicKeyPoint().toHexString()}")
+        Log.d(TAG, "Peer public key: ${peerPublicKeyBytes.toHexString()}")
 
-        val info = if (isOutgoing) "OUTGOING" else "INCOMING"
-        val combined = sharedSecret + nonce + info.toByteArray()
+        val peerPoint = p256curve.decodePoint(peerPublicKeyBytes)
+        val privateKey = keyPair?.private as? ECPrivateKeyParameters
+            ?: throw IllegalStateException("Private key not available")
 
-        val sha256 = java.security.MessageDigest.getInstance("SHA-256")
-        val derivedKey = sha256.digest(combined)
-        Timber.tag(TAG).d("Derived session key: ${derivedKey.toHexString()}")
-        return derivedKey
+        val sharedPoint = peerPoint.multiply(privateKey.d).normalize()
+        val sharedX = sharedPoint.affineXCoord.encoded
+
+        Log.d(TAG, "ECDH shared X: ${sharedX.toHexString()}")
+
+        val sha1 = java.security.MessageDigest.getInstance("SHA-1")
+        val digest = sha1.digest(sharedX)
+        val sessionKey = digest.copyOfRange(0, SHARED_KEY_SIZE)
+        Log.d(TAG, "Session key (SHA1[:16]): ${sessionKey.toHexString()}")
+
+        return sessionKey
     }
 
-    fun encryptAesGcm(plaintext: ByteArray, key: ByteArray, nonce: ByteArray): EncryptedData {
-        Timber.tag(TAG).d("Encrypting with AES-GCM")
-        Timber.tag(TAG).d("Plaintext: ${plaintext.toHexString()}")
-        Timber.tag(TAG).d("Key: ${key.toHexString()}")
-        Timber.tag(TAG).d("Nonce: ${nonce.toHexString()}")
+    fun encryptAesGcm(plaintext: ByteArray, key: ByteArray, aad: ByteArray? = null): EncryptedData {
+        Log.d(TAG, "Encrypting with AES-128-GCM, plaintext size: ${plaintext.size}")
+        Log.d(TAG, "Key: ${key.toHexString()}")
+        if (aad != null) {
+            Log.d(TAG, "AAD: ${aad.toHexString()}")
+        }
+
+        val nonce = ByteArray(GCM_IV_LENGTH)
+        secureRandom.nextBytes(nonce)
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         val secretKey = SecretKeySpec(key, "AES")
         val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH, nonce)
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, gcmSpec)
 
-        val ciphertext = cipher.doFinal(plaintext)
-        val encryptedData = EncryptedData(
-            ciphertext = ciphertext.copyOfRange(0, ciphertext.size - 16),
-            authTag = ciphertext.copyOfRange(ciphertext.size - 16, ciphertext.size)
-        )
+        if (aad != null) {
+            cipher.updateAAD(aad)
+        }
 
-        Timber.tag(TAG).d("Encrypted: ${encryptedData.ciphertext.toHexString()}")
-        Timber.tag(TAG).d("Auth tag: ${encryptedData.authTag.toHexString()}")
-        return encryptedData
+        val ciphertextWithTag = cipher.doFinal(plaintext)
+        val ciphertext = ciphertextWithTag.copyOfRange(0, plaintext.size)
+        val tag = ciphertextWithTag.copyOfRange(plaintext.size, ciphertextWithTag.size)
+
+        Log.d(TAG, "Nonce: ${nonce.toHexString()}")
+        Log.d(TAG, "Tag: ${tag.toHexString()}")
+
+        return EncryptedData(nonce, ciphertext, tag)
     }
 
-    fun decryptAesGcm(encryptedData: EncryptedData, key: ByteArray, nonce: ByteArray): ByteArray {
-        Timber.tag(TAG).d("Decrypting with AES-GCM")
-        Timber.tag(TAG).d("Ciphertext: ${encryptedData.ciphertext.toHexString()}")
-        Timber.tag(TAG).d("Auth tag: ${encryptedData.authTag.toHexString()}")
-        Timber.tag(TAG).d("Key: ${key.toHexString()}")
-        Timber.tag(TAG).d("Nonce: ${nonce.toHexString()}")
+    fun decryptAesGcm(encryptedData: EncryptedData, key: ByteArray, aad: ByteArray? = null): ByteArray {
+        Log.d(TAG, "Decrypting with AES-128-GCM")
+        Log.d(TAG, "Key: ${key.toHexString()}")
+        if (aad != null) {
+            Log.d(TAG, "AAD: ${aad.toHexString()}")
+        }
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         val secretKey = SecretKeySpec(key, "AES")
-        val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH, nonce)
+        val gcmSpec = GCMParameterSpec(GCM_TAG_LENGTH, encryptedData.nonce)
         cipher.init(Cipher.DECRYPT_MODE, secretKey, gcmSpec)
 
-        val plaintext = cipher.doFinal(encryptedData.ciphertext + encryptedData.authTag)
-        Timber.tag(TAG).d("Decrypted: ${plaintext.toHexString()}")
+        if (aad != null) {
+            cipher.updateAAD(aad)
+        }
+
+        val plaintext = cipher.doFinal(encryptedData.ciphertext + encryptedData.tag)
+        Log.d(TAG, "Decrypted size: ${plaintext.size}")
         return plaintext
+    }
+
+    fun hmacSha256(key: ByteArray, payload: ByteArray): ByteArray {
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(key, "HmacSHA256"))
+        return mac.doFinal(payload)
+    }
+
+    fun deriveHmacSubkey(sessionKey: ByteArray, label: String): ByteArray {
+        return hmacSha256(sessionKey, label.toByteArray(Charsets.UTF_8))
     }
 
     fun generateNonce(length: Int = GCM_IV_LENGTH): ByteArray {
         val nonce = ByteArray(length)
-        SecureRandom().nextBytes(nonce)
-        Timber.tag(TAG).d("Generated nonce: ${nonce.toHexString()}")
+        secureRandom.nextBytes(nonce)
+        Log.d(TAG, "Generated nonce: ${nonce.toHexString()}")
         return nonce
     }
 
-    fun sign(data: ByteArray): ByteArray {
-        Timber.tag(TAG).d("Signing data: ${data.toHexString()}")
-        val signature = if (keyPair?.private != null) {
-            val signer = java.security.Signature.getInstance("SHA256withECDSA")
-            signer.initSign(keyPair?.private)
-            signer.update(data)
-            signer.sign()
-        } else {
-            throw IllegalStateException("Private key not available")
-        }
-        Timber.tag(TAG).d("Signature: ${signature.toHexString()}")
+    fun ecdsaSign(data: ByteArray): ByteArray {
+        Log.d(TAG, "ECDSA signing data: ${data.toHexString()}")
+        val javaPrivateKey = java.security.KeyFactory.getInstance("EC")
+            .generatePrivate(PKCS8EncodedKeySpec(getJavaPrivateKeyEncoded()))
+        val signer = Signature.getInstance("SHA256withECDSA")
+        signer.initSign(javaPrivateKey)
+        signer.update(data)
+        val signature = signer.sign()
+        Log.d(TAG, "ECDSA signature: ${signature.toHexString()}")
         return signature
     }
 
-    fun verify(publicKey: ByteArray, data: ByteArray, signature: ByteArray): Boolean {
-        return try {
-            val verifier = java.security.Signature.getInstance("SHA256withECDSA")
-            verifier.initVerify(decodeEcPublicKey(publicKey))
-            verifier.update(data)
-            verifier.verify(signature)
-        } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Signature verification failed")
-            false
-        }
+    private fun getJavaPrivateKeyEncoded(): ByteArray {
+        val privateKey = (keyPair?.private as? ECPrivateKeyParameters)?.d
+            ?: throw IllegalStateException("Private key not available")
+
+        val ecSpec = java.security.spec.ECParameterSpec(
+            java.security.spec.EllipticCurve(
+                java.security.spec.ECFieldFp(BigInteger("ffffffff00000001000000000000000000000000fffffffffffffffffffffffc", 16)),
+                BigInteger("ffffffff00000001000000000000000000000000fffffffffffffffffffffffc", 16),
+                BigInteger("5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b", 16)
+            ),
+            java.security.spec.ECPoint(
+                BigInteger("6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296", 16),
+                BigInteger("4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5", 16)
+            ),
+            BigInteger("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551", 16),
+            1
+        )
+        val javaECKey = java.security.spec.ECPrivateKeySpec(privateKey, ecSpec)
+        return java.security.KeyFactory.getInstance("EC").generatePrivate(javaECKey).encoded
     }
 
     data class EncryptedData(
+        val nonce: ByteArray,
         val ciphertext: ByteArray,
-        val authTag: ByteArray
+        val tag: ByteArray
     )
 
-    private fun ByteArray.toHexString(): String {
-        return joinToString("") { "%02x".format(it) }
+    private fun bigIntToBytes(value: BigInteger, length: Int): ByteArray {
+        val bytes = ByteArray(length)
+        val src = value.toByteArray()
+        if (src.size <= length) {
+            System.arraycopy(src, 0, bytes, length - src.size, src.size)
+        } else {
+            System.arraycopy(src, src.size - length, bytes, 0, length)
+        }
+        return bytes
+    }
+
+    private fun stripLeadingZeros(bytes: ByteArray): ByteArray {
+        var start = 0
+        while (start < bytes.size - 1 && bytes[start] == 0.toByte()) {
+            start++
+        }
+        return bytes.copyOfRange(start, bytes.size)
     }
 }

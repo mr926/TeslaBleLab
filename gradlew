@@ -178,14 +178,4 @@ set -- \
         org.gradle.wrapper.GradleWrapperMain \
         "$@"
 
-# Stop when "xargs" is not available.
-if ! command -v xargs >/dev/null 2>&1
-then
-    die "xargs is not available"
-fi
-
-# Use "xargs" to parse quoted args.
-#
-# With -n://services.gradle.org/distributions/gradle-8.4-bin.zip we limit to one argument per call.
-# With -d ' ' we use a space as delimiter.
-eval "xargs -n1 -d' ' <<< \"\$JAVACMD \$DEFAULT_JVM_OPTS \$JAVA_OPTS \$GRADLE_OPTS\" | xargs \"\$JAVACMD\""
+exec "$JAVACMD" $DEFAULT_JVM_OPTS $JAVA_OPTS $GRADLE_OPTS "$@"

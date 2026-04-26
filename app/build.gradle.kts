@@ -38,6 +38,12 @@ android {
     buildFeatures {
         viewBinding = true
     }
+
+    packaging {
+        resources {
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
 }
 
 protobuf {
@@ -48,6 +54,9 @@ protobuf {
         all().forEach { task ->
             task.builtins {
                 create("java") {
+                    option("lite")
+                }
+                create("kotlin") {
                     option("lite")
                 }
             }
@@ -68,5 +77,6 @@ dependencies {
     implementation("com.google.protobuf:protobuf-javalite:3.24.4")
     implementation("com.google.protobuf:protobuf-kotlin-lite:3.24.4")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
-    implementation("com.jakewharton.timber:timber:5.0.1")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.78")
 }
