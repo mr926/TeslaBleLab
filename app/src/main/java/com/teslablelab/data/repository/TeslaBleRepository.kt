@@ -62,7 +62,7 @@ class TeslaBleRepository(
 ) {
     private val TAG = "TeslaBleRepository"
     private val schedulerTickMs = 50L
-    private val vcsecPollingIntervalMs = 1000L
+    private val vcsecPollingIntervalMs = 1500L
     private val connectTimeoutMs = 30_000L
     private val maxPollingWriteQueueSize = 4
 
@@ -81,12 +81,12 @@ class TeslaBleRepository(
     )
 
     private val carServerPollSpecs = listOf(
-        CarServerPollSpec(VehicleDataCategory.DRIVE, 250L),
-        CarServerPollSpec(VehicleDataCategory.CLOSURES, 1000L),
-        CarServerPollSpec(VehicleDataCategory.MEDIA, 2000L),
-        CarServerPollSpec(VehicleDataCategory.CHARGE, 6000L),
-        CarServerPollSpec(VehicleDataCategory.CLIMATE, 9000L),
-        CarServerPollSpec(VehicleDataCategory.TIRE_PRESSURE, 15000L)
+        CarServerPollSpec(VehicleDataCategory.DRIVE, 150L),
+        CarServerPollSpec(VehicleDataCategory.CLOSURES, 800L),
+        CarServerPollSpec(VehicleDataCategory.MEDIA, 5000L),
+        CarServerPollSpec(VehicleDataCategory.CHARGE, 10000L),
+        CarServerPollSpec(VehicleDataCategory.CLIMATE, 15000L),
+        CarServerPollSpec(VehicleDataCategory.TIRE_PRESSURE, 30000L)
     )
 
     private val secureStorage = SecureStorage(context)
