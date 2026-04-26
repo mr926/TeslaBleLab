@@ -1,0 +1,154 @@
+syntax = "proto3";
+
+package teslablelab.proto;
+
+option java_package = "com.teslablelab.data.proto";
+option java_multiple_files = true;
+
+message VCSessionInfo {
+  int32 session_id = 1;
+  int32 session_token = 2;
+  int32 vehicle_id = 3;
+}
+
+message VCParticipant {
+  bytes public_key = 1;
+  int32 participant_id = 2;
+  int32 protocol_version = 3;
+}
+
+message VCPairingRequest {
+  bytes client_nonce = 1;
+  bytes client_pubkey = 2;
+  int32 api_version = 3;
+}
+
+message VCPairingResponse {
+  bytes server_nonce = 1;
+  bytes server_pubkey = 2;
+  int32 pairing_status = 3;
+  int32api_version = 4;
+}
+
+message VCSignatureChallenge {
+  bytes challenge = 1;
+}
+
+message VCSignatureResponse {
+  bytes signature = 1;
+}
+
+message VCPairingConfirm {
+  bytes encrypted_pairing_token = 1;
+}
+
+message VCKeyExchange {
+  bytes client_ephemeral_pubkey = 1;
+  bytes client_ephemeral_nonce = 2;
+  bytes client_static_pubkey = 3;
+  bytes client_static_nonce = 4;
+  bytes client_signature = 5;
+}
+
+message VCKeyExchangeAck {
+  bytes server_ephemeral_pubkey = 1;
+  bytes server_ephemeral_nonce = 2;
+  bytes server_signature = 3;
+  int32 status = 4;
+}
+
+message VCSessionRequest {
+  int32 api_version = 1;
+  int32 session_type = 2;
+  bytes client_session_token = 3;
+}
+
+message VCSessionResponse {
+  int32 session_id = 1;
+  int32 session_token = 2;
+  int32 status = 3;
+}
+
+message VCSessionTerminate {
+  int32 session_id = 1;
+}
+
+message VCCryptoData {
+  int32 session_id = 1;
+  int32 message_type = 2;
+  bytes encrypted_data = 3;
+  bytes nonce = 4;
+  bytes auth_tag = 5;
+}
+
+message VCSubscribe {
+  repeated int32 subscription_ids = 1;
+}
+
+message VCSubscribeResponse {
+  repeated int32 subscription_ids = 1;
+  int32 status = 2;
+}
+
+message VCUnsubscribe {
+  repeated int32 subscription_ids = 1;
+}
+
+message VCHttpRequest {
+  int32 subscription_id = 1;
+  string method = 2;
+  string path = 3;
+  bytes body = 4;
+}
+
+message VCHttpResponse {
+  int32 subscription_id = 1;
+  int32 status_code = 2;
+  bytes body = 3;
+}
+
+message VCCustomMessage {
+  int32 message_id = 1;
+  bytes payload = 2;
+}
+
+message VCWakeUp {
+}
+
+message VCSleepCycleStart {
+  int32 wake_interval_seconds = 1;
+}
+
+message VCSleepCycleAck {
+}
+
+message VCSleepCycleEnd {
+}
+
+message VehicleState {
+  float speed_float = 1;
+  int32 power = 2;
+  string shift_state = 3;
+  float odometer = 4;
+  int32 battery_level = 5;
+  bool is_charging = 6;
+  float battery_voltage = 7;
+  float battery_current = 8;
+  float battery_pack_temperature = 9;
+  int32 tpms_pressure_fl = 10;
+  int32 tpms_pressure_fr = 11;
+  int32 tpms_pressure_rl = 12;
+  int32 tpms_pressure_rr = 13;
+  float latitude = 14;
+  float longitude = 15;
+  float altitude = 16;
+  bool is_parked = 17;
+  bool is_door_locked = 18;
+  bool is_frunk_open = 19;
+  bool is_trunk_open = 20;
+  float interior_temperature = 21;
+  float exterior_temperature = 22;
+  int32 hvac_auto_request = 23;
+  float driver_temp_setting = 24;
+  float passenger_temp_setting = 25;
+}

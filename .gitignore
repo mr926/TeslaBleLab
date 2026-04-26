@@ -1,0 +1,67 @@
+# Built application files
+*.apk
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+build/
+
+# Gradle files
+.gradle/
+gradle-app.setting
+
+# Local configuration file
+local.properties
+
+# Proguard folder
+proguard/
+
+# Log Files
+*.log
+
+# Android Studio Navigation editor temp files
+.navigation/
+
+# Android Studio captures folder
+captures/
+
+# IntelliJ
+*.iml
+.idea/
+*.ipr
+*.iws
+
+# Keystore files
+*.jks
+*.keystore
+
+# External native build folder
+.externalNativeBuild
+
+# Version control
+vcs.xml
+
+# Lint files
+lint.xml
+
+# MacOS
+.DS_Store
+
+# Temporary files
+*.swp
+*.swo
+*~
+
+# Gradle wrapper (download manually if needed)
+gradle/wrapper/gradle-wrapper.jar
+gradle-8.4-bin.zip
+gradle-8.4.zip
